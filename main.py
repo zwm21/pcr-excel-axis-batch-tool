@@ -194,23 +194,53 @@ class App:
             current_row += 1
 
         # --- 新增功能：字体、去粗、追加文本 ---
-        # 1. 设置所有单元格字体为“汉仪文黑-65W”（如果系统不支持会自动回退）
+        # --- 修改字体：仅改变字体名称，保留其他属性 ---
         for row in ws.iter_rows():
             for cell in row:
                 if cell.value is not None:
-                    cell.font = Font(name='汉仪文黑-65W')
+                    old_font = cell.font
+                    if old_font is not None:
+                        # 复制原有字体的所有属性，仅修改 name
+                        cell.font = Font(
+                            name='汉仪文黑-65W',
+                            size=old_font.size,
+                            bold=old_font.bold,
+                            italic=old_font.italic,
+                            underline=old_font.underline,
+                            strike=old_font.strike,
+                            color=old_font.color,
+                            scheme=old_font.scheme,
+                            family=old_font.family,
+                            charset=old_font.charset
+                        )
+                    else:
+                        # 没有原字体则只设置名称（大小等采用默认，通常为11）
+                        cell.font = Font(name='汉仪文黑-65W')
 
-        # 2. 取消 B1 和 C1 的加粗
-        b1 = ws['B1']
-        c1 = ws['C1']
-        if b1.font and b1.font.bold:
-            b1.font = Font(name='汉仪文黑-65W', bold=False)
-        if c1.font and c1.font.bold:
-            c1.font = Font(name='汉仪文黑-65W', bold=False)
+        # 2. 取消 B1 和 C1 的加粗（同时保留其他属性）
+        for cell in [ws['B1'], ws['C1']]:
+            if cell.value is not None:
+                old_font = cell.font
+                if old_font is not None:
+                    cell.font = Font(
+                        name='汉仪文黑-65W',
+                        size=old_font.size,
+                        bold=False,               # 取消加粗
+                        italic=old_font.italic,
+                        underline=old_font.underline,
+                        strike=old_font.strike,
+                        color=old_font.color,
+                        scheme=old_font.scheme,
+                        family=old_font.family,
+                        charset=old_font.charset
+                    )
+                else:
+                    cell.font = Font(name='汉仪文黑-65W', bold=False)
 
         # 3. 若启用追加文字，则在 C1 末尾添加用户自定义内容
+        c1 = ws['C1']
         if self.append_text_var.get():
-            suffix = self.text_suffix_var.get().strip()
+            suffix = self.text_suffix_var.get()
             if suffix:
                 old_val = str(c1.value) if c1.value else ''
                 c1.value = old_val + suffix
