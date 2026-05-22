@@ -175,10 +175,10 @@ class App:
                 font_color = None
             elif op_text == "AUTO":
                 fill_text = f"{role_value}(AUTO)"
-                font_color = "0000FF"  # 蓝色
+                font_color = "00b0f0"  # 浅蓝色#00b0f0
             else:
                 fill_text = f"{role_value}({op_text})"
-                font_color = "FF0000"  # 红色
+                font_color = "FF0000"  # 红色#ff0000
 
             # 解除该行的合并区域
             self.unmerge_in_rect(ws, current_row, merge_start_col, current_row, merge_end_col)
