@@ -189,15 +189,15 @@ class App:
             rt = CellRichText()
             if op_text == "" or op_text == "连点":
                 fill_text = str(role_value).strip()
-                rt.append(fill_text)
+                # 黑色文字也显式指定字体，确保是汉仪文黑-65W
+                rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W'), fill_text))
             elif op_text == "AUTO":
                 fill_text = f"{role_value}(AUTO)"
-                # 创建内联字体并构建带格式的文本块
-                font = InlineFont(color='00b0f0')
+                font = InlineFont(rFont='汉仪文黑-65W', color='00b0f0')
                 rt.append(TextBlock(font, fill_text))
             else:
                 fill_text = f"{role_value}({op_text})"
-                font = InlineFont(color='FF0000')
+                font = InlineFont(rFont='汉仪文黑-65W', color='FF0000')
                 rt.append(TextBlock(font, fill_text))
 
             # 解除该行的合并区域
@@ -264,48 +264,153 @@ class App:
                 old_val = str(c1.value) if c1.value else ''
                 c1.value = old_val + suffix
 
-        # --- 合并符合条件的相邻行（角色文本宽度）---
+        # ========== 合并符合条件的相邻行（完整规则） ==========
+        # 收集所有有内容的数据行号
         rows = []
         current = header_row + 1
         while current <= ws.max_row:
-            merged_cell = ws.cell(row=current, column=merge_start_col)
-            if merged_cell.value is None:
-                current += 1
-                continue
-            if isinstance(merged_cell.value, (str, CellRichText)):
+            cell = ws.cell(row=current, column=merge_start_col)
+            if cell.value is not None:
                 rows.append(current)
             current += 1
+
+        # 辅助函数：判断某行是否属于宽度超过5的合并单元格
+        def is_oversize_merged(row):
+            for m in ws.merged_cells.ranges:
+                if m.min_row <= row <= m.max_row and m.min_col <= merge_start_col <= m.max_col:
+                    if m.max_col - m.min_col + 1 > 5:
+                        return True
+            return False
 
         to_delete = []
         i = 0
         while i < len(rows) - 1:
             cur_row = rows[i]
             nxt_row = rows[i+1]
+
+            # 最后一行不参与合并
+            if nxt_row == rows[-1]:
+                i += 1
+                continue
+            # 当前行或下一行的角色格宽度超过5，跳过
+            if is_oversize_merged(cur_row) or is_oversize_merged(nxt_row):
+                i += 1
+                continue
+
             cur_cell = ws.cell(row=cur_row, column=merge_start_col)
             nxt_cell = ws.cell(row=nxt_row, column=merge_start_col)
-            cur_text = str(cur_cell.value) if cur_cell.value else ""
-            nxt_text = str(nxt_cell.value) if nxt_cell.value else ""
-            cur_width = self.display_width(cur_text)
-            nxt_width = self.display_width(nxt_text)
-            if cur_width <= 20 and nxt_width <= 20 and (cur_width + nxt_width) <= 20:
-                if isinstance(cur_cell.value, CellRichText) and isinstance(nxt_cell.value, CellRichText):
-                    # 使用 as_list() 获取所有文本块
-                    for block in nxt_cell.value.as_list():
-                        if isinstance(block, tuple) and len(block) == 2:
-                            text_part, font_part = block
-                            cur_cell.value.append(text_part, font=font_part)
-                        elif isinstance(block, str):
-                            cur_cell.value.append(block)
-                        else:
-                            cur_cell.value.append(str(block))
-                else:
-                    # 非富文本则简单拼接
-                    cur_cell.value = CellRichText(cur_text + nxt_text)
-                to_delete.append(nxt_row)
-                rows.pop(i+1)
-            else:
-                i += 1
 
+            # 读取秒数
+            cur_sec = str(ws.cell(row=cur_row, column=start_col).value or "").strip()
+            nxt_sec = str(ws.cell(row=nxt_row, column=start_col).value or "").strip()
+
+            # 提取纯文本
+            def get_plain_text(value):
+                if isinstance(value, CellRichText):
+                    return "".join(str(b) for b in value)
+                return str(value) if value else ""
+
+            cur_text = get_plain_text(cur_cell.value)
+            nxt_text = get_plain_text(nxt_cell.value)
+
+            # 模拟合并后文本，用于宽度判断
+            if cur_sec == nxt_sec:
+                merged_text = cur_text + "-" + nxt_text
+            else:
+                if "(AUTO)" in nxt_text:
+                    new_nxt = nxt_text.replace("(AUTO)", f"({nxt_sec} AUTO)")
+                elif "(" in nxt_text and ")" in nxt_text:
+                    start = nxt_text.find("(")
+                    end = nxt_text.find(")")
+                    if start != -1 and end != -1:
+                        inner = nxt_text[start+1:end]
+                        new_nxt = nxt_text[:start+1] + nxt_sec + " " + inner + nxt_text[end:]
+                    else:
+                        new_nxt = nxt_text + f"({nxt_sec})"
+                else:
+                    new_nxt = nxt_text + f"({nxt_sec})"
+                merged_text = cur_text + "-" + new_nxt
+
+            if self.display_width(merged_text) > 31:
+                i += 1
+                continue
+
+            # ---------- 开始构建新富文本 ----------
+            new_rt = CellRichText()
+
+            # 辅助函数：确保块带有目标字体
+            def ensure_font(block):
+                if isinstance(block, TextBlock):
+                    if block.font is None or block.font.rFont is None:
+                        old_color = block.font.color if block.font else None
+                        new_font = InlineFont(rFont='汉仪文黑-65W', color=old_color)
+                        return TextBlock(new_font, block.text)
+                    else:
+                        return block
+                else:
+                    return TextBlock(InlineFont(rFont='汉仪文黑-65W'), str(block))
+
+            # 1) 添加当前行所有内容（统一字体）
+            if isinstance(cur_cell.value, CellRichText):
+                for block in cur_cell.value:
+                    new_rt.append(ensure_font(block))
+            else:
+                new_rt.append(ensure_font(str(cur_cell.value) if cur_cell.value else ""))
+
+            # 2) 添加分隔符 "-"，带字体
+            new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W'), "-"))
+
+            # 3) 处理下一行（保留颜色，统一字体）
+            if isinstance(nxt_cell.value, CellRichText):
+                nxt_blocks = list(nxt_cell.value)
+                if cur_sec != nxt_sec:
+                    if len(nxt_blocks) == 1 and isinstance(nxt_blocks[0], TextBlock):
+                        original_color = nxt_blocks[0].font.color if nxt_blocks[0].font else None
+                        # 生成修改后的文本
+                        if "(AUTO)" in nxt_text:
+                            modified = nxt_text.replace("(AUTO)", f"({nxt_sec} AUTO)")
+                        elif "(" in nxt_text and ")" in nxt_text:
+                            start = nxt_text.find("(")
+                            end = nxt_text.find(")")
+                            inner = nxt_text[start+1:end] if start+1 < end else ""
+                            modified = nxt_text[:start+1] + nxt_sec + " " + inner + nxt_text[end:]
+                        else:
+                            modified = nxt_text + f"({nxt_sec})"
+                        # 创建新块，保留原颜色并强制使用汉仪文黑
+                        new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W', color=original_color), modified))
+                    else:
+                        # 多块或混合，先原样添加（但统一字体）
+                        for block in nxt_blocks:
+                            new_rt.append(ensure_font(block))
+                        # 追加纯文本秒数
+                        new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W'), f"({nxt_sec})"))
+                else:
+                    # 秒数相同，直接添加所有块（统一字体）
+                    for block in nxt_blocks:
+                        new_rt.append(ensure_font(block))
+            else:
+                # 下一行是普通字符串，处理并带字体
+                nxt_str = str(nxt_cell.value) if nxt_cell.value else ""
+                if cur_sec != nxt_sec:
+                    if "(AUTO)" in nxt_str:
+                        nxt_str = nxt_str.replace("(AUTO)", f"({nxt_sec} AUTO)")
+                    elif "(" in nxt_str and ")" in nxt_str:
+                        start = nxt_str.find("(")
+                        end = nxt_str.find(")")
+                        inner = nxt_str[start+1:end]
+                        nxt_str = nxt_str[:start+1] + nxt_sec + " " + inner + nxt_str[end:]
+                    else:
+                        nxt_str = nxt_str + f"({nxt_sec})"
+                new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W'), nxt_str))
+
+            # 写入合并结果
+            cur_cell.value = new_rt
+            cur_cell.alignment = Alignment(horizontal='center', vertical='center')
+
+            to_delete.append(nxt_row)
+            rows.pop(i + 1)
+
+        # 删除被合并的行
         for del_row in sorted(to_delete, reverse=True):
             if 1 <= del_row <= ws.max_row:
                 ws.delete_rows(del_row)
