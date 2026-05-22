@@ -138,6 +138,16 @@ class App:
             role_value = ws.cell(row=current_row, column=role_col).value
             if role_value is None or (isinstance(role_value, str) and role_value.strip() == ""):
                 break
+            
+            # 在处理数据行循环内部，读取 role_value 之后，添加以下跳过逻辑：
+            merged = None
+            for m in ws.merged_cells.ranges:
+                if m.min_row <= current_row <= m.max_row and m.min_col <= role_col <= m.max_col:
+                    merged = m
+                    break
+            if merged and (merged.max_col - merged.min_col + 1) > 5:
+                current_row += 1
+                continue
 
             # 读取操作文本（第一个操作列）
             op_value = ws.cell(row=current_row, column=action_col).value
