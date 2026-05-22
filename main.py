@@ -411,9 +411,17 @@ class App:
             rows.pop(i + 1)
 
         # 删除被合并的行
+        #for del_row in sorted(to_delete, reverse=True):
+        #    if 1 <= del_row <= ws.max_row:
+        #        ws.delete_rows(del_row)
+
+        # 不删除，而是将下一行内容清空并隐藏
         for del_row in sorted(to_delete, reverse=True):
             if 1 <= del_row <= ws.max_row:
-                ws.delete_rows(del_row)
+                ws.row_dimensions[del_row].hidden = True
+                # 清空合并单元格的内容，但保留合并格式（不解除）
+                cell = ws.cell(row=del_row, column=merge_start_col)
+                cell.value = None
 
         # 生成新文件路径
         dirname = os.path.dirname(filepath)
