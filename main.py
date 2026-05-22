@@ -1,3 +1,17 @@
+try:
+    from wcwidth import wcswidth
+    HAS_WCWIDTH = True
+except ImportError:
+    HAS_WCWIDTH = False
+    # 简单回退：粗略估算中文字符宽度为2
+    def simple_width(s):
+        width = 0
+        for ch in s:
+            if '\u4e00' <= ch <= '\u9fff':
+                width += 2
+            else:
+                width += 1
+        return width
 import os
 import threading
 import tkinter as tk
@@ -5,6 +19,8 @@ from tkinter import filedialog, messagebox, scrolledtext
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
+from openpyxl.cell.rich_text import CellRichText, TextBlock
+from openpyxl.cell.text import InlineFont
 
 
 class App:
@@ -120,7 +136,7 @@ class App:
 
     def process_file(self, filepath):
         """处理单个文件：查找表头、合并表头和数据行、保存新文件"""
-        wb = load_workbook(filepath)
+        wb = load_workbook(filepath, rich_text=True)
         if "轴模板" not in wb.sheetnames:
             raise ValueError("找不到工作表 '轴模板'")
         ws = wb["轴模板"]
@@ -169,16 +185,20 @@ class App:
             else:
                 op_text = str(op_value).strip()
 
-            # 决定填充文本和字体颜色
+            # 创建富文本对象
+            rt = CellRichText()
             if op_text == "" or op_text == "连点":
                 fill_text = str(role_value).strip()
-                font_color = None
+                rt.append(fill_text)
             elif op_text == "AUTO":
                 fill_text = f"{role_value}(AUTO)"
-                font_color = "00b0f0"  # 浅蓝色#00b0f0
+                # 创建内联字体并构建带格式的文本块
+                font = InlineFont(color='00b0f0')
+                rt.append(TextBlock(font, fill_text))
             else:
                 fill_text = f"{role_value}({op_text})"
-                font_color = "FF0000"  # 红色#ff0000
+                font = InlineFont(color='FF0000')
+                rt.append(TextBlock(font, fill_text))
 
             # 解除该行的合并区域
             self.unmerge_in_rect(ws, current_row, merge_start_col, current_row, merge_end_col)
@@ -186,10 +206,9 @@ class App:
             merge_range_data = f"{get_column_letter(merge_start_col)}{current_row}:{get_column_letter(merge_end_col)}{current_row}"
             ws.merge_cells(merge_range_data)
             data_cell = ws.cell(row=current_row, column=merge_start_col)
-            data_cell.value = fill_text
+            data_cell.value = rt
             data_cell.alignment = Alignment(horizontal='center', vertical='center')
-            if font_color:
-                data_cell.font = Font(color=font_color)
+            # 不需要再单独设置字体，因为富文本已经包含了字体颜色信息
 
             current_row += 1
 
@@ -244,6 +263,52 @@ class App:
             if suffix:
                 old_val = str(c1.value) if c1.value else ''
                 c1.value = old_val + suffix
+
+        # --- 合并符合条件的相邻行（角色文本宽度）---
+        rows = []
+        current = header_row + 1
+        while current <= ws.max_row:
+            merged_cell = ws.cell(row=current, column=merge_start_col)
+            if merged_cell.value is None:
+                current += 1
+                continue
+            if isinstance(merged_cell.value, (str, CellRichText)):
+                rows.append(current)
+            current += 1
+
+        to_delete = []
+        i = 0
+        while i < len(rows) - 1:
+            cur_row = rows[i]
+            nxt_row = rows[i+1]
+            cur_cell = ws.cell(row=cur_row, column=merge_start_col)
+            nxt_cell = ws.cell(row=nxt_row, column=merge_start_col)
+            cur_text = str(cur_cell.value) if cur_cell.value else ""
+            nxt_text = str(nxt_cell.value) if nxt_cell.value else ""
+            cur_width = self.display_width(cur_text)
+            nxt_width = self.display_width(nxt_text)
+            if cur_width <= 20 and nxt_width <= 20 and (cur_width + nxt_width) <= 20:
+                if isinstance(cur_cell.value, CellRichText) and isinstance(nxt_cell.value, CellRichText):
+                    # 使用 as_list() 获取所有文本块
+                    for block in nxt_cell.value.as_list():
+                        if isinstance(block, tuple) and len(block) == 2:
+                            text_part, font_part = block
+                            cur_cell.value.append(text_part, font=font_part)
+                        elif isinstance(block, str):
+                            cur_cell.value.append(block)
+                        else:
+                            cur_cell.value.append(str(block))
+                else:
+                    # 非富文本则简单拼接
+                    cur_cell.value = CellRichText(cur_text + nxt_text)
+                to_delete.append(nxt_row)
+                rows.pop(i+1)
+            else:
+                i += 1
+
+        for del_row in sorted(to_delete, reverse=True):
+            if 1 <= del_row <= ws.max_row:
+                ws.delete_rows(del_row)
 
         # 生成新文件路径
         dirname = os.path.dirname(filepath)
@@ -305,6 +370,13 @@ class App:
                 to_unmerge.append(merged)
         for rng in to_unmerge:
             ws.unmerge_cells(str(rng))
+    
+    @staticmethod
+    def display_width(text):
+        if HAS_WCWIDTH:
+            return wcswidth(text)
+        else:
+            return simple_width(text)
 
 
 if __name__ == "__main__":
