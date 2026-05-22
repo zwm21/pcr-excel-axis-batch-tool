@@ -24,13 +24,13 @@ if exist dist rmdir /s /q dist
 if exist *.spec del /q *.spec
 
 echo [*] 开始打包，请稍候...
-pyinstaller --onefile --windowed --name="轴模板批量处理工具" --add-data "HYWenHei-65W.ttf;." main.py
+pyinstaller --onefile --windowed --name="抄轴工具" --add-data "HYWenHei-65W.ttf;." main.py
 
 if %errorlevel% equ 0 (
     echo.
     echo ==========================================
     echo [√] 打包成功！
-    echo exe 文件位于: %~dp0dist\轴模板批量处理工具.exe
+    echo exe 文件位于: %~dp0dist\抄轴工具.exe
     echo ==========================================
 ) else (
     echo [X] 打包失败，请检查错误信息。
