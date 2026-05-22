@@ -38,6 +38,19 @@ class App:
         self.start_btn = tk.Button(btn_frame, text="开始处理", command=self.start_processing)
         self.start_btn.pack(side=tk.RIGHT, padx=2)
 
+        # 追加文字选项框架
+        opt_frame = tk.Frame(root)
+        opt_frame.pack(padx=5, pady=5, fill=tk.X)
+
+        self.append_text_var = tk.BooleanVar(value=True)
+        append_cb = tk.Checkbutton(opt_frame, text="在轴标题末尾追加文字", variable=self.append_text_var)
+        append_cb.pack(side=tk.LEFT, padx=2)
+
+        tk.Label(opt_frame, text="文字内容：").pack(side=tk.LEFT, padx=(10,2))
+        self.text_suffix_var = tk.StringVar(value=" by 筱娅")
+        suffix_entry = tk.Entry(opt_frame, textvariable=self.text_suffix_var, width=15)
+        suffix_entry.pack(side=tk.LEFT)
+
         # 日志区
         tk.Label(root, text="处理日志：").pack(anchor="w", padx=5)
         self.log_text = scrolledtext.ScrolledText(root, width=80, height=12, state=tk.DISABLED)
@@ -179,6 +192,28 @@ class App:
                 data_cell.font = Font(color=font_color)
 
             current_row += 1
+
+        # --- 新增功能：字体、去粗、追加文本 ---
+        # 1. 设置所有单元格字体为“汉仪文黑-65W”（如果系统不支持会自动回退）
+        for row in ws.iter_rows():
+            for cell in row:
+                if cell.value is not None:
+                    cell.font = Font(name='汉仪文黑-65W')
+
+        # 2. 取消 B1 和 C1 的加粗
+        b1 = ws['B1']
+        c1 = ws['C1']
+        if b1.font and b1.font.bold:
+            b1.font = Font(name='汉仪文黑-65W', bold=False)
+        if c1.font and c1.font.bold:
+            c1.font = Font(name='汉仪文黑-65W', bold=False)
+
+        # 3. 若启用追加文字，则在 C1 末尾添加用户自定义内容
+        if self.append_text_var.get():
+            suffix = self.text_suffix_var.get().strip()
+            if suffix:
+                old_val = str(c1.value) if c1.value else ''
+                c1.value = old_val + suffix
 
         # 生成新文件路径
         dirname = os.path.dirname(filepath)
