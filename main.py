@@ -294,23 +294,42 @@ class App:
         i = 0
         while i < len(rows) - 1:
             cur_row = rows[i]
-            nxt_row = rows[i+1]
 
-            # 最后一行不参与合并
-            if nxt_row == rows[-1]:
+            group_rows = []      # 存储行号，不包含 cur_row
+            group_sec = None
+            j = i + 1
+            while j < len(rows):
+                candidate = rows[j]
+                # 检查是否宽合并（捆绑组内也不能有宽合并）
+                if is_oversize_merged(candidate):
+                    break
+                sec = str(ws.cell(row=candidate, column=start_col).value or "").strip()
+                if group_sec is None:
+                    group_sec = sec
+                    group_rows.append(candidate)
+                elif sec == group_sec:
+                    group_rows.append(candidate)
+                else:
+                    break
+                j += 1
+
+            # 如果没有捆绑组，跳过当前行，继续下一个
+            if not group_rows:
                 i += 1
                 continue
-            # 当前行或下一行的角色格宽度超过5，跳过
-            if is_oversize_merged(cur_row) or is_oversize_merged(nxt_row):
+
+            # 最后一行保护：若捆绑组包含了最后一行，则不合并
+            if group_rows[-1] == rows[-1]:
+                i += 1
+                continue
+
+            # 当前行自身是宽合并则跳过（捆绑组内部已在扫描时排除）
+            if is_oversize_merged(cur_row):
                 i += 1
                 continue
 
             cur_cell = ws.cell(row=cur_row, column=merge_start_col)
-            nxt_cell = ws.cell(row=nxt_row, column=merge_start_col)
-
-            # 读取秒数
-            cur_sec = str(ws.cell(row=cur_row, column=start_col).value or "").strip()
-            nxt_sec = str(ws.cell(row=nxt_row, column=start_col).value or "").strip()
+            # 捆绑组信息已经存在：group_sec（共同秒数），group_rows（行号列表）
 
             # 提取纯文本
             def get_plain_text(value):
@@ -318,31 +337,48 @@ class App:
                     return "".join(str(b) for b in value)
                 return str(value) if value else ""
 
-            cur_text = get_plain_text(cur_cell.value)
-            nxt_text = get_plain_text(nxt_cell.value)
-
-            # 模拟合并后文本，用于宽度判断
-            if nxt_sec == last_sec:
-                merged_text = cur_text + "-" + nxt_text
-            else:
-                formatted = self.format_sec(nxt_sec)
-                if "(AUTO)" in nxt_text:
-                    new_nxt = nxt_text.replace("(AUTO)", f"({formatted} AUTO)")
-                elif "(" in nxt_text and ")" in nxt_text:
-                    start = nxt_text.find("(")
-                    end = nxt_text.find(")")
-                    if start != -1 and end != -1:
-                        inner = nxt_text[start+1:end]
-                        new_nxt = nxt_text[:start+1] + formatted + " " + inner + nxt_text[end:]
-                    else:
-                        new_nxt = nxt_text + f"({formatted})"
+            # 计算捆绑组的总显示宽度（内部用“-”连接）
+            group_text_width = 0
+            group_plain_parts = []
+            for idx, gr in enumerate(group_rows):
+                gr_cell = ws.cell(row=gr, column=merge_start_col)
+                gr_text = get_plain_text(gr_cell.value)
+                group_plain_parts.append(gr_text)
+                if idx == 0:
+                    group_text_width += self.display_width(gr_text)
                 else:
-                    new_nxt = nxt_text + f"({formatted})"
-                merged_text = cur_text + "-" + new_nxt
+                    group_text_width += self.display_width("-") + self.display_width(gr_text)
 
-            if self.display_width(merged_text) > 36:
+            cur_text = get_plain_text(cur_cell.value)
+            cur_width = self.display_width(cur_text)
+
+            # 模拟合并后的总宽度
+            if group_sec != last_sec:
+                formatted = self.format_sec(group_sec)
+                # 需要加秒数后缀在捆绑组第一个角色名后，计算后缀宽度
+                # 后缀形式： (formatted) 或 (formatted AUTO) 等，需从第一个gr_text推断
+                first_gr_text = group_plain_parts[0]
+                if "(AUTO)" in first_gr_text:
+                    suffix = f"({formatted} AUTO)"
+                elif "(" in first_gr_text and ")" in first_gr_text:
+                    # 保留原括号内容，插入秒数
+                    start = first_gr_text.find("(")
+                    end = first_gr_text.find(")")
+                    inner = first_gr_text[start+1:end]
+                    suffix = f"({formatted} {inner})"
+                else:
+                    suffix = f"({formatted})"
+                suffix_width = self.display_width(suffix)
+                # 合并后总宽度 = 当前行宽度 + "-" + 后缀宽度 + (捆绑组内部宽度，但第一个角色名已被后缀替换？)
+                # 注意：后缀将替换第一个角色名的一部分？不，我们是在原文本后添加，不会减少宽度。
+                # 原 first_gr_text 已被计入 group_text_width，添加后缀会额外增加 suffix_width
+                total_width = cur_width + self.display_width("-") + group_text_width + suffix_width
+            else:
+                total_width = cur_width + self.display_width("-") + group_text_width
+
+            if total_width > 36:
                 i += 1
-                last_sec = nxt_sec   # 不合并时，下一个起点使用下一行的秒数
+                last_sec = group_sec   # 捆绑组秒数成为新基准
                 continue
 
             # ---------- 开始构建新富文本 ----------
@@ -367,59 +403,81 @@ class App:
             else:
                 new_rt.append(ensure_font(str(cur_cell.value) if cur_cell.value else ""))
 
-            # 2) 添加分隔符 "-"，带字体
+            # 2) 添加分隔符 "-"
             new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W'), "-"))
 
-            # 3) 处理下一行（保留颜色，统一字体）
-            if isinstance(nxt_cell.value, CellRichText):
-                nxt_blocks = list(nxt_cell.value)
-                if nxt_sec != last_sec:
-                    formatted = self.format_sec(nxt_sec)   # 添加这行
-                    if len(nxt_blocks) == 1 and isinstance(nxt_blocks[0], TextBlock):
-                        color_obj = nxt_blocks[0].font.color if nxt_blocks[0].font else None
-                        original_color = color_obj.rgb if color_obj and hasattr(color_obj, 'rgb') else None
-                        if "(AUTO)" in nxt_text:
-                            modified = nxt_text.replace("(AUTO)", f"({formatted} AUTO)")
-                        elif "(" in nxt_text and ")" in nxt_text:
-                            start = nxt_text.find("(")
-                            end = nxt_text.find(")")
-                            inner = nxt_text[start+1:end] if start+1 < end else ""
-                            modified = nxt_text[:start+1] + formatted + " " + inner + nxt_text[end:]
+            # 3) 处理捆绑组
+            for idx, gr in enumerate(group_rows):
+                gr_cell = ws.cell(row=gr, column=merge_start_col)
+                # 每两行之间插入 "-"
+                if idx > 0:
+                    new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W'), "-"))
+
+                if idx == 0 and group_sec != last_sec:
+                    # 修改第一个块的文本，添加秒数后缀
+                    formatted = self.format_sec(group_sec)
+                    if isinstance(gr_cell.value, CellRichText):
+                        blocks = list(gr_cell.value)
+                        if blocks:
+                            first_block = blocks[0] if isinstance(blocks[0], TextBlock) else None
+                            if first_block:
+                                color_obj = first_block.font.color if first_block.font else None
+                                original_color = color_obj.rgb if color_obj and hasattr(color_obj, 'rgb') else None
+                                raw_text = str(first_block.text) if first_block.text else ""
+                                if "(AUTO)" in raw_text:
+                                    modified = raw_text.replace("(AUTO)", f"({formatted} AUTO)")
+                                elif "(" in raw_text and ")" in raw_text:
+                                    start = raw_text.find("(")
+                                    end = raw_text.find(")")
+                                    inner = raw_text[start+1:end] if start+1 < end else ""
+                                    modified = raw_text[:start+1] + formatted + " " + inner + raw_text[end:]
+                                else:
+                                    modified = raw_text + f"({formatted})"
+                                new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W', color=original_color), modified))
+                                # 添加剩余块
+                                for b in blocks[1:]:
+                                    new_rt.append(ensure_font(b))
+                            else:
+                                # 第一个块不是 TextBlock，则直接加整个单元格再追加后缀
+                                for b in blocks:
+                                    new_rt.append(ensure_font(b))
+                                new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W'), f"({formatted})"))
                         else:
-                            modified = nxt_text + f"({formatted})"
-                        new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W', color=original_color), modified))
-                        last_sec = nxt_sec   # 秒数被标记，更新
+                            new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W'), get_plain_text(gr_cell.value) + f"({formatted})"))
                     else:
-                        for block in nxt_blocks:
-                            new_rt.append(ensure_font(block))
-                        new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W'), f"({formatted})"))
-                        last_sec = nxt_sec
+                        raw = get_plain_text(gr_cell.value)
+                        if "(AUTO)" in raw:
+                            modified = raw.replace("(AUTO)", f"({formatted} AUTO)")
+                        elif "(" in raw and ")" in raw:
+                            start = raw.find("(")
+                            end = raw.find(")")
+                            inner = raw[start+1:end]
+                            modified = raw[:start+1] + formatted + " " + inner + raw[end:]
+                        else:
+                            modified = raw + f"({formatted})"
+                        new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W'), modified))
+                    last_sec = group_sec   # 标记秒数已使用
                 else:
-                    # 秒数相同，不加后缀
-                    for block in nxt_blocks:
-                        new_rt.append(ensure_font(block))
-            else:
-                nxt_str = str(nxt_cell.value) if nxt_cell.value else ""
-                if nxt_sec != last_sec:
-                    formatted = self.format_sec(nxt_sec)
-                    if "(AUTO)" in nxt_str:
-                        nxt_str = nxt_str.replace("(AUTO)", f"({formatted} AUTO)")
-                    elif "(" in nxt_str and ")" in nxt_str:
-                        start = nxt_str.find("(")
-                        end = nxt_str.find(")")
-                        inner = nxt_str[start+1:end]
-                        nxt_str = nxt_str[:start+1] + formatted + " " + inner + nxt_str[end:]
+                    # 不加秒数，直接追加全部块
+                    if isinstance(gr_cell.value, CellRichText):
+                        for block in gr_cell.value:
+                            new_rt.append(ensure_font(block))
                     else:
-                        nxt_str = nxt_str + f"({formatted})"
-                    last_sec = nxt_sec
-                new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W'), nxt_str))
+                        new_rt.append(ensure_font(str(gr_cell.value) if gr_cell.value else ""))
 
             # 写入合并结果
             cur_cell.value = new_rt
             cur_cell.alignment = Alignment(horizontal='center', vertical='center')
 
-            to_delete.append(nxt_row)
-            rows.pop(i + 1)
+            # 标记删除整个捆绑组
+            to_delete.extend(group_rows)
+            # 从 rows 中移除这些行（保持 i 不变，继续用当前行与后面的行比较）
+            for _ in group_rows:
+                # group_rows 中的所有行号应连续且在 rows 中 i+1 开始
+                # 简单做法：删除后 i 不增加，重新循环时 cur_row 不变，rows 已变化
+                # 这里直接删除 rows[i+1] 多次
+                if i+1 < len(rows):
+                    rows.pop(i+1)
 
         # 删除被合并的行
         #for del_row in sorted(to_delete, reverse=True):
