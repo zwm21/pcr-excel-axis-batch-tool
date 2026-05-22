@@ -284,12 +284,6 @@ class App:
 
         to_delete = []
 
-        # 初始化 last_sec 为第一个普通行的原始秒数
-        if rows:
-            first_sec = str(ws.cell(row=rows[0], column=start_col).value or "").strip()
-            last_sec = first_sec
-        else:
-            last_sec = None
             
         i = 0
         while i < len(rows) - 1:
@@ -329,6 +323,7 @@ class App:
                 continue
 
             cur_cell = ws.cell(row=cur_row, column=merge_start_col)
+            cur_sec = str(ws.cell(row=cur_row, column=start_col).value or "").strip()
             # 捆绑组信息已经存在：group_sec（共同秒数），group_rows（行号列表）
 
             # 提取纯文本
@@ -353,7 +348,7 @@ class App:
             cur_width = self.display_width(cur_text)
 
             # 模拟合并后的总宽度
-            if group_sec != last_sec:
+            if group_sec != cur_sec:   # 直接与当前行秒数比较
                 formatted = self.format_sec(group_sec)
                 # 需要加秒数后缀在捆绑组第一个角色名后，计算后缀宽度
                 # 后缀形式： (formatted) 或 (formatted AUTO) 等，需从第一个gr_text推断
@@ -378,7 +373,6 @@ class App:
 
             if total_width > 36:
                 i += 1
-                last_sec = group_sec   # 捆绑组秒数成为新基准
                 continue
 
             # ---------- 开始构建新富文本 ----------
@@ -413,7 +407,7 @@ class App:
                 if idx > 0:
                     new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W'), "-"))
 
-                if idx == 0 and group_sec != last_sec:
+                if idx == 0 and group_sec != cur_sec:
                     # 修改第一个块的文本，添加秒数后缀
                     formatted = self.format_sec(group_sec)
                     if isinstance(gr_cell.value, CellRichText):
@@ -456,7 +450,6 @@ class App:
                         else:
                             modified = raw + f"({formatted})"
                         new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W'), modified))
-                    last_sec = group_sec   # 标记秒数已使用
                 else:
                     # 不加秒数，直接追加全部块
                     if isinstance(gr_cell.value, CellRichText):
