@@ -283,6 +283,14 @@ class App:
             return False
 
         to_delete = []
+
+        # 初始化 last_sec 为第一个普通行的原始秒数
+        if rows:
+            first_sec = str(ws.cell(row=rows[0], column=start_col).value or "").strip()
+            last_sec = first_sec
+        else:
+            last_sec = None
+            
         i = 0
         while i < len(rows) - 1:
             cur_row = rows[i]
@@ -314,25 +322,27 @@ class App:
             nxt_text = get_plain_text(nxt_cell.value)
 
             # 模拟合并后文本，用于宽度判断
-            if cur_sec == nxt_sec:
+            if nxt_sec == last_sec:
                 merged_text = cur_text + "-" + nxt_text
             else:
+                formatted = self.format_sec(nxt_sec)
                 if "(AUTO)" in nxt_text:
-                    new_nxt = nxt_text.replace("(AUTO)", f"({nxt_sec} AUTO)")
+                    new_nxt = nxt_text.replace("(AUTO)", f"({formatted} AUTO)")
                 elif "(" in nxt_text and ")" in nxt_text:
                     start = nxt_text.find("(")
                     end = nxt_text.find(")")
                     if start != -1 and end != -1:
                         inner = nxt_text[start+1:end]
-                        new_nxt = nxt_text[:start+1] + nxt_sec + " " + inner + nxt_text[end:]
+                        new_nxt = nxt_text[:start+1] + formatted + " " + inner + nxt_text[end:]
                     else:
-                        new_nxt = nxt_text + f"({nxt_sec})"
+                        new_nxt = nxt_text + f"({formatted})"
                 else:
-                    new_nxt = nxt_text + f"({nxt_sec})"
+                    new_nxt = nxt_text + f"({formatted})"
                 merged_text = cur_text + "-" + new_nxt
 
-            if self.display_width(merged_text) > 31:
+            if self.display_width(merged_text) > 36:
                 i += 1
+                last_sec = nxt_sec   # 不合并时，下一个起点使用下一行的秒数
                 continue
 
             # ---------- 开始构建新富文本 ----------
@@ -363,44 +373,45 @@ class App:
             # 3) 处理下一行（保留颜色，统一字体）
             if isinstance(nxt_cell.value, CellRichText):
                 nxt_blocks = list(nxt_cell.value)
-                if cur_sec != nxt_sec:
+                if nxt_sec != last_sec:
+                    formatted = self.format_sec(nxt_sec)   # 添加这行
                     if len(nxt_blocks) == 1 and isinstance(nxt_blocks[0], TextBlock):
-                        original_color = nxt_blocks[0].font.color if nxt_blocks[0].font else None
-                        # 生成修改后的文本
+                        color_obj = nxt_blocks[0].font.color if nxt_blocks[0].font else None
+                        original_color = color_obj.rgb if color_obj and hasattr(color_obj, 'rgb') else None
                         if "(AUTO)" in nxt_text:
-                            modified = nxt_text.replace("(AUTO)", f"({nxt_sec} AUTO)")
+                            modified = nxt_text.replace("(AUTO)", f"({formatted} AUTO)")
                         elif "(" in nxt_text and ")" in nxt_text:
                             start = nxt_text.find("(")
                             end = nxt_text.find(")")
                             inner = nxt_text[start+1:end] if start+1 < end else ""
-                            modified = nxt_text[:start+1] + nxt_sec + " " + inner + nxt_text[end:]
+                            modified = nxt_text[:start+1] + formatted + " " + inner + nxt_text[end:]
                         else:
-                            modified = nxt_text + f"({nxt_sec})"
-                        # 创建新块，保留原颜色并强制使用汉仪文黑
+                            modified = nxt_text + f"({formatted})"
                         new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W', color=original_color), modified))
+                        last_sec = nxt_sec   # 秒数被标记，更新
                     else:
-                        # 多块或混合，先原样添加（但统一字体）
                         for block in nxt_blocks:
                             new_rt.append(ensure_font(block))
-                        # 追加纯文本秒数
-                        new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W'), f"({nxt_sec})"))
+                        new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W'), f"({formatted})"))
+                        last_sec = nxt_sec
                 else:
-                    # 秒数相同，直接添加所有块（统一字体）
+                    # 秒数相同，不加后缀
                     for block in nxt_blocks:
                         new_rt.append(ensure_font(block))
             else:
-                # 下一行是普通字符串，处理并带字体
                 nxt_str = str(nxt_cell.value) if nxt_cell.value else ""
-                if cur_sec != nxt_sec:
+                if nxt_sec != last_sec:
+                    formatted = self.format_sec(nxt_sec)
                     if "(AUTO)" in nxt_str:
-                        nxt_str = nxt_str.replace("(AUTO)", f"({nxt_sec} AUTO)")
+                        nxt_str = nxt_str.replace("(AUTO)", f"({formatted} AUTO)")
                     elif "(" in nxt_str and ")" in nxt_str:
                         start = nxt_str.find("(")
                         end = nxt_str.find(")")
                         inner = nxt_str[start+1:end]
-                        nxt_str = nxt_str[:start+1] + nxt_sec + " " + inner + nxt_str[end:]
+                        nxt_str = nxt_str[:start+1] + formatted + " " + inner + nxt_str[end:]
                     else:
-                        nxt_str = nxt_str + f"({nxt_sec})"
+                        nxt_str = nxt_str + f"({formatted})"
+                    last_sec = nxt_sec
                 new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W'), nxt_str))
 
             # 写入合并结果
@@ -491,6 +502,13 @@ class App:
         else:
             return simple_width(text)
 
+    @staticmethod
+    def format_sec(sec_str):
+        """将 '1:19' 转为 '119'，'52' 转为 '052'，长度 >3 时保持原样"""
+        s = sec_str.replace(':', '')
+        if len(s) <= 3:
+            s = s.zfill(3)
+        return s
 
 if __name__ == "__main__":
     root = tk.Tk()
