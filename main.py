@@ -372,8 +372,39 @@ class App:
                 total_width = cur_width + self.display_width("-") + group_text_width
 
             if total_width > 36:
-                i += 1
-                continue
+                if group_sec == cur_sec:
+                    # 同秒但总宽度超限：找到不超限的最大前缀子集进行合并
+                    sep_w = self.display_width("-")
+                    best_k = -1
+                    for k in range(len(group_rows)):
+                        subset_w = cur_width + sep_w
+                        for idx in range(k + 1):
+                            if idx > 0:
+                                subset_w += sep_w
+                            subset_w += self.display_width(group_plain_parts[idx])
+                        if subset_w <= 36:
+                            best_k = k
+                        else:
+                            break
+                    if best_k >= 0:
+                        # 裁剪 group_rows 为能容纳的最大前缀，剩余行留到下一轮处理
+                        group_rows = group_rows[:best_k + 1]
+                        group_plain_parts = group_plain_parts[:best_k + 1]
+                        group_text_width = 0
+                        for idx, part in enumerate(group_plain_parts):
+                            if idx == 0:
+                                group_text_width += self.display_width(part)
+                            else:
+                                group_text_width += sep_w + self.display_width(part)
+                        total_width = cur_width + sep_w + group_text_width
+                        # 继续执行后面的合并逻辑
+                    else:
+                        i += 1
+                        continue
+                else:
+                    # 不同秒且总宽度超限：当前行单独输出，下一行开始的同秒组在下一轮自行合并
+                    i += 1
+                    continue
 
             # ---------- 开始构建新富文本 ----------
             new_rt = CellRichText()
