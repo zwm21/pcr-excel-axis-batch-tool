@@ -312,11 +312,6 @@ class App:
                 i += 1
                 continue
 
-            # 最后一行保护：若捆绑组包含了最后一行，则不合并
-            if group_rows[-1] == rows[-1]:
-                i += 1
-                continue
-
             # 当前行自身是宽合并则跳过（捆绑组内部已在扫描时排除）
             if is_oversize_merged(cur_row):
                 i += 1
