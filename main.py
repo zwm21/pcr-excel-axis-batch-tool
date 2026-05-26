@@ -349,20 +349,19 @@ class App:
                 # 后缀形式： (formatted) 或 (formatted AUTO) 等，需从第一个gr_text推断
                 first_gr_text = group_plain_parts[0]
                 if "(AUTO)" in first_gr_text:
-                    suffix = f"({formatted} AUTO)"
+                    modified_first = first_gr_text.replace("(AUTO)", f"({formatted} AUTO)")
                 elif "(" in first_gr_text and ")" in first_gr_text:
-                    # 保留原括号内容，插入秒数
                     start = first_gr_text.find("(")
                     end = first_gr_text.find(")")
                     inner = first_gr_text[start+1:end]
-                    suffix = f"({formatted} {inner})"
+                    modified_first = first_gr_text[:start+1] + formatted + " " + inner + first_gr_text[end:]
                 else:
-                    suffix = f"({formatted})"
-                suffix_width = self.display_width(suffix)
-                # 合并后总宽度 = 当前行宽度 + "-" + 后缀宽度 + (捆绑组内部宽度，但第一个角色名已被后缀替换？)
-                # 注意：后缀将替换第一个角色名的一部分？不，我们是在原文本后添加，不会减少宽度。
-                # 原 first_gr_text 已被计入 group_text_width，添加后缀会额外增加 suffix_width
-                total_width = cur_width + self.display_width("-") + group_text_width + suffix_width
+                    modified_first = first_gr_text + f"({formatted})"
+                # 用修改后的第一个文本宽度替换原宽度，避免后缀被重复计算
+                actual_group_width = (group_text_width
+                                      - self.display_width(first_gr_text)
+                                      + self.display_width(modified_first))
+                total_width = cur_width + self.display_width("-") + actual_group_width
             else:
                 total_width = cur_width + self.display_width("-") + group_text_width
 
