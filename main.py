@@ -366,7 +366,7 @@ class App:
             else:
                 total_width = cur_width + self.display_width("-") + group_text_width
 
-            if total_width > 36:
+            if total_width > 38:
                 if group_sec == cur_sec:
                     # 同秒但总宽度超限：找到不超限的最大前缀子集进行合并
                     sep_w = self.display_width("-")
@@ -377,7 +377,7 @@ class App:
                             if idx > 0:
                                 subset_w += sep_w
                             subset_w += self.display_width(group_plain_parts[idx])
-                        if subset_w <= 36:
+                        if subset_w <= 38:
                             best_k = k
                         else:
                             break
