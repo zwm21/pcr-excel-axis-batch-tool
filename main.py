@@ -47,17 +47,19 @@ class App:
         btn_frame = tk.Frame(root)
         btn_frame.pack(padx=5, pady=5, fill=tk.X)
 
-        add_files_btn = tk.Button(btn_frame, text="添加文件", command=self.add_files)
-        add_files_btn.pack(side=tk.LEFT, padx=2)
+        self.add_files_btn = tk.Button(btn_frame, text="添加文件", command=self.add_files)
+        self.add_files_btn.pack(side=tk.LEFT, padx=2)
 
-        add_folder_btn = tk.Button(btn_frame, text="添加文件夹", command=self.add_folder)
-        add_folder_btn.pack(side=tk.LEFT, padx=2)
+        self.add_folder_btn = tk.Button(btn_frame, text="添加文件夹", command=self.add_folder)
+        self.add_folder_btn.pack(side=tk.LEFT, padx=2)
 
-        clear_btn = tk.Button(btn_frame, text="清空列表", command=self.clear_list)
-        clear_btn.pack(side=tk.LEFT, padx=2)
+        self.clear_btn = tk.Button(btn_frame, text="清空列表", command=self.clear_list)
+        self.clear_btn.pack(side=tk.LEFT, padx=2)
 
         self.start_btn = tk.Button(btn_frame, text="开始处理", command=self.start_processing)
         self.start_btn.pack(side=tk.RIGHT, padx=2)
+
+        self._op_buttons = (self.add_files_btn, self.add_folder_btn, self.clear_btn, self.start_btn)
 
         # 追加文字选项框架
         opt_frame = tk.Frame(root)
@@ -116,12 +118,17 @@ class App:
         self.log_text.see(tk.END)
         self.log_text.config(state=tk.DISABLED)
 
+    def _set_buttons_state(self, state):
+        """统一设置所有操作按钮的启用/禁用状态"""
+        for btn in self._op_buttons:
+            btn.config(state=state)
+
     def start_processing(self):
         """启动处理线程"""
         if not self.files:
             messagebox.showwarning("警告", "没有待处理的文件，请先添加文件或文件夹。")
             return
-        self.start_btn.config(state=tk.DISABLED)
+        self._set_buttons_state(tk.DISABLED)
         self.log("开始处理...")
         thread = threading.Thread(target=self.process_all, daemon=True)
         thread.start()
@@ -140,7 +147,7 @@ class App:
                 self.log(f"✗ 处理失败: {str(e)}")
                 fail_count += 1
         self.log(f"处理完成！成功: {success_count}, 失败: {fail_count}")
-        self.root.after(0, lambda: self.start_btn.config(state=tk.NORMAL))
+        self.root.after(0, lambda: self._set_buttons_state(tk.NORMAL))
 
     def process_file(self, filepath):
         """处理单个文件：查找表头、合并表头和数据行、保存新文件"""
