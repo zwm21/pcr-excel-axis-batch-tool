@@ -96,7 +96,6 @@ class App:
         folder = filedialog.askdirectory(title="选择文件夹", initialdir=self.last_dir)
         if folder:
             self.last_dir = folder
-            return
         for root, dirs, files in os.walk(folder):
             for f in files:
                 if f.lower().endswith(".xlsx"):
