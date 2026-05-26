@@ -33,7 +33,8 @@ class App:
         self.root.title("轴模板批量处理工具")
         self.root.geometry("700x500")
 
-        self.files = []  # 存储文件路径
+        self.files = []      # 存储文件路径
+        self.last_dir = None  # 记住上次打开的目录
 
         # 顶部标签
         tk.Label(root, text="待处理文件列表：").pack(anchor="w", padx=5, pady=(5, 0))
@@ -80,8 +81,11 @@ class App:
         """添加选中的excel文件"""
         paths = filedialog.askopenfilenames(
             title="选择Excel文件",
-            filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")]
+            filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")],
+            initialdir=self.last_dir
         )
+        if paths:
+            self.last_dir = os.path.dirname(paths[0])
         for p in paths:
             if p not in self.files:
                 self.files.append(p)
@@ -89,8 +93,9 @@ class App:
 
     def add_folder(self):
         """添加文件夹中的所有excel文件"""
-        folder = filedialog.askdirectory(title="选择文件夹")
-        if not folder:
+        folder = filedialog.askdirectory(title="选择文件夹", initialdir=self.last_dir)
+        if folder:
+            self.last_dir = folder
             return
         for root, dirs, files in os.walk(folder):
             for f in files:
