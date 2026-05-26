@@ -23,6 +23,10 @@ from openpyxl.cell.rich_text import CellRichText, TextBlock
 from openpyxl.cell.text import InlineFont
 
 
+# 合并后单行最大显示宽度（Excel列宽约38个半角字符）
+MERGE_WIDTH_LIMIT = 38
+
+
 class App:
     def __init__(self, root):
         self.root = root
@@ -365,7 +369,7 @@ class App:
             else:
                 total_width = cur_width + self.display_width("-") + group_text_width
 
-            if total_width > 38:
+            if total_width > MERGE_WIDTH_LIMIT:
                 if group_sec == cur_sec:
                     # 同秒但总宽度超限：找到不超限的最大前缀子集进行合并
                     sep_w = self.display_width("-")
@@ -376,7 +380,7 @@ class App:
                             if idx > 0:
                                 subset_w += sep_w
                             subset_w += self.display_width(group_plain_parts[idx])
-                        if subset_w <= 38:
+                        if subset_w <= MERGE_WIDTH_LIMIT:
                             best_k = k
                         else:
                             break
