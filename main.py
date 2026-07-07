@@ -40,14 +40,13 @@ class App:
         self._build_header()                # row=0
         self._build_file_section()          # row=1  stretch
         self._build_template_card()         # row=2
-        self._build_separator_card()        # row=3
-        self._build_width_limit_card()      # row=4
-        self._build_option_bar()            # row=5
-        self._build_log_section()           # row=6  stretch
+        self._build_merge_config_card()     # row=3
+        self._build_option_bar()            # row=4
+        self._build_log_section()           # row=5  stretch
 
         # 缩放权重
         self.root.grid_rowconfigure(1, weight=1)
-        self.root.grid_rowconfigure(6, weight=1)
+        self.root.grid_rowconfigure(5, weight=1)
         self.root.grid_columnconfigure(0, weight=1)
 
     # ----------------------------------------------------------
@@ -269,9 +268,9 @@ class App:
         self.template_desc_text.config(state=tk.DISABLED)
 
     # ----------------------------------------------------------
-    #  分隔符配置卡片
+    #  合并配置卡片（分隔符 + 宽度限制）
     # ----------------------------------------------------------
-    def _build_separator_card(self):
+    def _build_merge_config_card(self):
         SEP_OPTIONS = ["默认一", "默认二", "自定义"]
         SEP_VALUES = {"默认一": "-", "默认二": " - ", "自定义": "  "}
 
@@ -282,13 +281,12 @@ class App:
                   padx=PAD_PAGE, pady=(0, GAP_LG))
         card.grid_columnconfigure(2, weight=1)
 
-        # 标签
+        # ---- 第一行：行间分隔符 ----
         ttk.Label(card, text="行间分隔符",
                   style="Section.TLabel").grid(
             row=0, column=0, sticky="w",
-            padx=(PAD_CARD, GAP_LG), pady=PAD_CARD_Y)
+            padx=(PAD_CARD, GAP_LG), pady=(PAD_CARD_Y, GAP_SM))
 
-        # 预设选项框
         self.sep_option_var = tk.StringVar(value="默认一")
         sep_combo = ttk.Combobox(
             card, textvariable=self.sep_option_var,
@@ -296,10 +294,9 @@ class App:
             state="readonly", width=10,
             font=_make_font(FONT_SIZE_NORMAL))
         sep_combo.grid(row=0, column=1, sticky="w",
-                       padx=(0, GAP_MD), pady=PAD_CARD_Y)
+                       padx=(0, GAP_MD), pady=(PAD_CARD_Y, GAP_SM))
         sep_combo.bind("<<ComboboxSelected>>", self._on_separator_changed)
 
-        # 文本输入框
         self.separator_text_var = tk.StringVar(value="-")
         self.sep_entry = tk.Entry(
             card, textvariable=self.separator_text_var,
@@ -311,29 +308,13 @@ class App:
             highlightbackground=COLOR_CARD_BORDER,
             highlightthickness=0)
         self.sep_entry.grid(row=0, column=2, sticky="w",
-                            padx=(0, PAD_CARD), pady=PAD_CARD_Y)
+                            padx=(0, PAD_CARD), pady=(PAD_CARD_Y, GAP_SM))
 
-        self._sep_values = SEP_VALUES
-
-    def _on_separator_changed(self, event=None):
-        """预设选项切换时自动填充文本框。"""
-        val = self._sep_values.get(self.sep_option_var.get(), "-")
-        self.separator_text_var.set(val)
-
-    # ----------------------------------------------------------
-    #  宽度限制配置卡片
-    # ----------------------------------------------------------
-    def _build_width_limit_card(self):
-        card = tk.Frame(self.root, bg=COLOR_CARD_BG,
-                        highlightbackground=COLOR_CARD_BORDER,
-                        highlightthickness=1)
-        card.grid(row=4, column=0, sticky="ew",
-                  padx=PAD_PAGE, pady=(0, GAP_LG))
-
+        # ---- 第二行：宽度限制 ----
         ttk.Label(card, text="合并行宽度限制",
                   style="Section.TLabel").grid(
-            row=0, column=0, sticky="w",
-            padx=(PAD_CARD, GAP_MD), pady=PAD_CARD_Y)
+            row=1, column=0, sticky="w",
+            padx=(PAD_CARD, GAP_MD), pady=(GAP_SM, PAD_CARD_Y))
 
         self.width_limit_var = tk.StringVar(value="38")
         entry = tk.Entry(
@@ -345,14 +326,21 @@ class App:
             relief="solid", borderwidth=1,
             highlightbackground=COLOR_CARD_BORDER,
             highlightthickness=0)
-        entry.grid(row=0, column=1, sticky="w",
-                   padx=(0, GAP_MD), pady=PAD_CARD_Y)
+        entry.grid(row=1, column=1, sticky="w",
+                   padx=(0, GAP_MD), pady=(GAP_SM, PAD_CARD_Y))
 
         hint = tk.Label(card, text="个半角字符宽度（默认 38）",
                         bg=COLOR_CARD_BG, fg=COLOR_TEXT_SECONDARY,
                         font=_make_font(FONT_SIZE_SMALL))
-        hint.grid(row=0, column=2, sticky="w",
-                  padx=(0, PAD_CARD), pady=PAD_CARD_Y)
+        hint.grid(row=1, column=2, sticky="w",
+                  padx=(0, PAD_CARD), pady=(GAP_SM, PAD_CARD_Y))
+
+        self._sep_values = SEP_VALUES
+
+    def _on_separator_changed(self, event=None):
+        """预设选项切换时自动填充文本框。"""
+        val = self._sep_values.get(self.sep_option_var.get(), "-")
+        self.separator_text_var.set(val)
 
     # ----------------------------------------------------------
     #  选项栏 + 开始按钮
@@ -361,7 +349,7 @@ class App:
         card = tk.Frame(self.root, bg=COLOR_CARD_BG,
                         highlightbackground=COLOR_CARD_BORDER,
                         highlightthickness=1)
-        card.grid(row=5, column=0, sticky="ew",
+        card.grid(row=4, column=0, sticky="ew",
                   padx=PAD_PAGE, pady=(0, GAP_LG))
         card.grid_columnconfigure(1, weight=1)
 
@@ -415,7 +403,7 @@ class App:
         card = tk.Frame(self.root, bg=COLOR_CARD_BG,
                         highlightbackground=COLOR_CARD_BORDER,
                         highlightthickness=1)
-        card.grid(row=6, column=0, sticky="nsew",
+        card.grid(row=5, column=0, sticky="nsew",
                   padx=PAD_PAGE, pady=(0, PAD_PAGE))
         card.grid_rowconfigure(1, weight=1)
         card.grid_columnconfigure(0, weight=1)
