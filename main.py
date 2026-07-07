@@ -41,12 +41,13 @@ class App:
         self._build_file_section()          # row=1  stretch
         self._build_template_card()         # row=2
         self._build_separator_card()        # row=3
-        self._build_option_bar()            # row=4
-        self._build_log_section()           # row=5  stretch
+        self._build_width_limit_card()      # row=4
+        self._build_option_bar()            # row=5
+        self._build_log_section()           # row=6  stretch
 
         # 缩放权重
         self.root.grid_rowconfigure(1, weight=1)
-        self.root.grid_rowconfigure(5, weight=1)
+        self.root.grid_rowconfigure(6, weight=1)
         self.root.grid_columnconfigure(0, weight=1)
 
     # ----------------------------------------------------------
@@ -320,13 +321,47 @@ class App:
         self.separator_text_var.set(val)
 
     # ----------------------------------------------------------
+    #  宽度限制配置卡片
+    # ----------------------------------------------------------
+    def _build_width_limit_card(self):
+        card = tk.Frame(self.root, bg=COLOR_CARD_BG,
+                        highlightbackground=COLOR_CARD_BORDER,
+                        highlightthickness=1)
+        card.grid(row=4, column=0, sticky="ew",
+                  padx=PAD_PAGE, pady=(0, GAP_LG))
+
+        ttk.Label(card, text="合并行宽度限制",
+                  style="Section.TLabel").grid(
+            row=0, column=0, sticky="w",
+            padx=(PAD_CARD, GAP_MD), pady=PAD_CARD_Y)
+
+        self.width_limit_var = tk.StringVar(value="38")
+        entry = tk.Entry(
+            card, textvariable=self.width_limit_var,
+            width=6,
+            font=_make_font(FONT_SIZE_NORMAL),
+            bg="#FFFFFF", fg=COLOR_TEXT,
+            insertbackground=COLOR_TEXT,
+            relief="solid", borderwidth=1,
+            highlightbackground=COLOR_CARD_BORDER,
+            highlightthickness=0)
+        entry.grid(row=0, column=1, sticky="w",
+                   padx=(0, GAP_MD), pady=PAD_CARD_Y)
+
+        hint = tk.Label(card, text="个半角字符宽度（默认 38）",
+                        bg=COLOR_CARD_BG, fg=COLOR_TEXT_SECONDARY,
+                        font=_make_font(FONT_SIZE_SMALL))
+        hint.grid(row=0, column=2, sticky="w",
+                  padx=(0, PAD_CARD), pady=PAD_CARD_Y)
+
+    # ----------------------------------------------------------
     #  选项栏 + 开始按钮
     # ----------------------------------------------------------
     def _build_option_bar(self):
         card = tk.Frame(self.root, bg=COLOR_CARD_BG,
                         highlightbackground=COLOR_CARD_BORDER,
                         highlightthickness=1)
-        card.grid(row=4, column=0, sticky="ew",
+        card.grid(row=5, column=0, sticky="ew",
                   padx=PAD_PAGE, pady=(0, GAP_LG))
         card.grid_columnconfigure(1, weight=1)
 
@@ -380,7 +415,7 @@ class App:
         card = tk.Frame(self.root, bg=COLOR_CARD_BG,
                         highlightbackground=COLOR_CARD_BORDER,
                         highlightthickness=1)
-        card.grid(row=5, column=0, sticky="nsew",
+        card.grid(row=6, column=0, sticky="nsew",
                   padx=PAD_PAGE, pady=(0, PAD_PAGE))
         card.grid_rowconfigure(1, weight=1)
         card.grid_columnconfigure(0, weight=1)
@@ -480,7 +515,8 @@ class App:
             self.log(f"[{idx}/{len(self.files)}] 正在处理: {os.path.basename(filepath)}")
             try:
                 out_path = tmpl.process_file(
-                    filepath, self, tid, self.separator_text_var.get())
+                    filepath, self, tid, self.separator_text_var.get(),
+                    int(self.width_limit_var.get()))
                 self.log(f"✓ 处理成功 -> {out_path}")
                 success_count += 1
             except Exception as e:

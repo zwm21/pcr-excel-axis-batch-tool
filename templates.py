@@ -30,7 +30,7 @@ except ImportError:
 # ============================================================
 #  共享工具函数（原 App 类的静态方法，提取到模块级供模板复用）
 # ============================================================
-MERGE_WIDTH_LIMIT = 38
+width_limit = 38
 
 
 def display_width(text: str) -> int:
@@ -179,18 +179,20 @@ def get_template_by_id(template_id: str) -> dict:
 
 
 def process_file(filepath: str, app, template_id: str,
-                 separator: str = "-") -> str:
-    """根据模板 ID 调度对应的处理函数，separator 为行间分隔符。"""
+                 separator: str = "-",
+                 width_limit: int = 38) -> str:
+    """根据模板 ID 调度对应的处理函数。"""
     if template_id == "simple":
         return _process_simple(filepath, app)
     else:
-        return _process_standard(filepath, app, separator)
+        return _process_standard(filepath, app, separator, width_limit)
 
 
 # ============================================================
 #  模板 1：标准处理（完整流程）
 # ============================================================
-def _process_standard(filepath: str, app, separator: str = "-") -> str:
+def _process_standard(filepath: str, app, separator: str = "-",
+                       width_limit: int = 38) -> str:
     """标准处理：包含智能行分组合并的完整流程。"""
     wb = load_workbook(filepath, rich_text=True)
     if "轴模板" not in wb.sheetnames:
@@ -267,7 +269,8 @@ def _process_standard(filepath: str, app, separator: str = "-") -> str:
     _apply_suffix(ws, app)
 
     # 步骤 6：智能行分组合并
-    _merge_adjacent_rows(ws, header_row, start_col, merge_start_col, separator)
+    _merge_adjacent_rows(ws, header_row, start_col, merge_start_col,
+                          separator, width_limit)
 
     # 步骤 7：保存
     return _save_result(wb, filepath)
@@ -413,7 +416,8 @@ def _save_result(wb, filepath: str) -> str:
 
 
 def _merge_adjacent_rows(ws, header_row: int, start_col: int,
-                          merge_start_col: int, separator: str = "-"):
+                          merge_start_col: int, separator: str = "-",
+                          width_limit: int = 38):
     """模板1专属：智能行分组合并（同秒相邻行合并为一行）。"""
     rows = []
     current = header_row + 1
@@ -493,7 +497,7 @@ def _merge_adjacent_rows(ws, header_row: int, start_col: int,
         else:
             total_width = cur_width + display_width(separator) + group_text_width
 
-        if total_width > MERGE_WIDTH_LIMIT:
+        if total_width > width_limit:
             if group_sec == cur_sec:
                 sep_w = display_width(separator)
                 best_k = -1
@@ -503,7 +507,7 @@ def _merge_adjacent_rows(ws, header_row: int, start_col: int,
                         if idx > 0:
                             subset_w += sep_w
                         subset_w += display_width(group_plain_parts[idx])
-                    if subset_w <= MERGE_WIDTH_LIMIT:
+                    if subset_w <= width_limit:
                         best_k = k
                     else:
                         break
