@@ -167,7 +167,7 @@ class App:
         self.clear_btn.pack(side=tk.LEFT, padx=GAP_SM)
 
     # ----------------------------------------------------------
-    #  模板信息卡片（选择器 + 详细描述）
+    #  模板信息卡片（选择器 + 摘要 + 可收起的详细描述）
     # ----------------------------------------------------------
     def _build_template_card(self):
         card = tk.Frame(self.root, bg=COLOR_CARD_BG,
@@ -177,7 +177,7 @@ class App:
                   padx=PAD_PAGE, pady=(0, GAP_LG))
         card.grid_columnconfigure(0, weight=1)
 
-        # 标题行 + 选择器
+        # 标题行 + 选择器 + 显示/隐藏按钮
         sel_row = tk.Frame(card, bg=COLOR_CARD_BG)
         sel_row.grid(row=0, column=0, sticky="ew",
                      padx=PAD_CARD, pady=(PAD_TITLE_Y, GAP_SM))
@@ -193,35 +193,56 @@ class App:
         self.template_combo.pack(side=tk.LEFT, padx=(GAP_XL, 0))
         self.template_combo.bind("<<ComboboxSelected>>", self._on_template_changed)
 
+        # 显示/隐藏详细描述按钮
+        self._desc_toggle_btn = ttk.Button(
+            sel_row, text="▸ 显示详细说明",
+            style="Primary.TButton",
+            command=self._toggle_desc)
+        self._desc_toggle_btn.pack(side=tk.RIGHT)
+
         # 模板摘要
         self.template_summary_label = tk.Label(
             card, text="", bg=COLOR_CARD_BG, fg=COLOR_TEXT_SECONDARY,
             font=_make_font(FONT_SIZE_SMALL),
-            anchor="w", justify=tk.LEFT, wraplength=WIN_DEFAULT_WIDTH - 60)
+            anchor="w", justify=tk.LEFT,
+            wraplength=WIN_DEFAULT_WIDTH - 60)
         self.template_summary_label.grid(
             row=1, column=0, sticky="ew",
             padx=PAD_CARD, pady=(0, GAP_SM))
 
-        # 描述文本框（只读，固定高度）
-        desc_frame = tk.Frame(card, bg=COLOR_CARD_BORDER)
-        desc_frame.grid(row=2, column=0, sticky="ew",
-                        padx=PAD_CARD, pady=(0, PAD_CARD_Y))
-        desc_frame.grid_rowconfigure(0, weight=1)
-        desc_frame.grid_columnconfigure(0, weight=1)
+        # 描述文本框（只读，默认隐藏）
+        self._desc_visible = False
+        self.desc_frame = tk.Frame(card, bg=COLOR_CARD_BORDER)
+        self.desc_frame.grid_rowconfigure(0, weight=1)
+        self.desc_frame.grid_columnconfigure(0, weight=1)
 
         self.template_desc_text = tk.Text(
-            desc_frame,
-            height=4, state=tk.DISABLED,
+            self.desc_frame,
+            height=14, state=tk.DISABLED,
             bg=COLOR_LOG_BG, fg=COLOR_TEXT,
             font=_make_font(FONT_SIZE_SMALL, family=FONT_MONO),
             borderwidth=0, highlightthickness=0,
             relief="flat", wrap=tk.WORD, padx=GAP_MD, pady=GAP_MD)
-        self.template_desc_text.grid(row=0, column=0, sticky="ew",
+        self.template_desc_text.grid(row=0, column=0, sticky="nsew",
                                      padx=1, pady=1)
+        # 默认隐藏
+        self.desc_frame.grid_remove()
 
         # 初始设置
         self.template_combo.current(0)
         self._update_template_info()
+
+    def _toggle_desc(self):
+        """切换详细描述的显示/隐藏。"""
+        if self._desc_visible:
+            self.desc_frame.grid_remove()
+            self._desc_toggle_btn.config(text="▸ 显示详细说明")
+            self._desc_visible = False
+        else:
+            self.desc_frame.grid(row=2, column=0, sticky="ew",
+                                padx=PAD_CARD, pady=(0, PAD_CARD_Y))
+            self._desc_toggle_btn.config(text="▾ 隐藏详细说明")
+            self._desc_visible = True
 
     def _on_template_changed(self, event=None):
         """模板切换回调。"""
@@ -235,10 +256,11 @@ class App:
         t = tmpl.TEMPLATES[idx]
         self.template_var.set(t["id"])
         self.template_summary_label.config(text=t["summary"])
+        # 即便隐藏也预先填充文本，展开时立即可见
         self._set_desc_text(t["description"])
 
     def _set_desc_text(self, text):
-        """向描述文本框写入内容（带简单着色）。"""
+        """向描述文本框写入内容。"""
         self.template_desc_text.config(state=tk.NORMAL)
         self.template_desc_text.delete("1.0", tk.END)
         self.template_desc_text.insert("1.0", text)
