@@ -178,18 +178,19 @@ def get_template_by_id(template_id: str) -> dict:
     return TEMPLATES[0]  # 回退到第一个
 
 
-def process_file(filepath: str, app, template_id: str) -> str:
-    """根据模板 ID 调度对应的处理函数。"""
+def process_file(filepath: str, app, template_id: str,
+                 separator: str = "-") -> str:
+    """根据模板 ID 调度对应的处理函数，separator 为行间分隔符。"""
     if template_id == "simple":
         return _process_simple(filepath, app)
     else:
-        return _process_standard(filepath, app)
+        return _process_standard(filepath, app, separator)
 
 
 # ============================================================
 #  模板 1：标准处理（完整流程）
 # ============================================================
-def _process_standard(filepath: str, app) -> str:
+def _process_standard(filepath: str, app, separator: str = "-") -> str:
     """标准处理：包含智能行分组合并的完整流程。"""
     wb = load_workbook(filepath, rich_text=True)
     if "轴模板" not in wb.sheetnames:
@@ -266,7 +267,7 @@ def _process_standard(filepath: str, app) -> str:
     _apply_suffix(ws, app)
 
     # 步骤 6：智能行分组合并
-    _merge_adjacent_rows(ws, header_row, start_col, merge_start_col)
+    _merge_adjacent_rows(ws, header_row, start_col, merge_start_col, separator)
 
     # 步骤 7：保存
     return _save_result(wb, filepath)
@@ -411,7 +412,8 @@ def _save_result(wb, filepath: str) -> str:
     return new_path
 
 
-def _merge_adjacent_rows(ws, header_row: int, start_col: int, merge_start_col: int):
+def _merge_adjacent_rows(ws, header_row: int, start_col: int,
+                          merge_start_col: int, separator: str = "-"):
     """模板1专属：智能行分组合并（同秒相邻行合并为一行）。"""
     rows = []
     current = header_row + 1
@@ -470,7 +472,7 @@ def _merge_adjacent_rows(ws, header_row: int, start_col: int, merge_start_col: i
             if idx == 0:
                 group_text_width += display_width(gr_text)
             else:
-                group_text_width += display_width("-") + display_width(gr_text)
+                group_text_width += display_width(separator) + display_width(gr_text)
 
         if group_sec != cur_sec:
             formatted = format_sec(group_sec)
@@ -487,13 +489,13 @@ def _merge_adjacent_rows(ws, header_row: int, start_col: int, merge_start_col: i
             actual_group_width = (group_text_width
                                   - display_width(first_gr)
                                   + display_width(modified_first))
-            total_width = cur_width + display_width("-") + actual_group_width
+            total_width = cur_width + display_width(separator) + actual_group_width
         else:
-            total_width = cur_width + display_width("-") + group_text_width
+            total_width = cur_width + display_width(separator) + group_text_width
 
         if total_width > MERGE_WIDTH_LIMIT:
             if group_sec == cur_sec:
-                sep_w = display_width("-")
+                sep_w = display_width(separator)
                 best_k = -1
                 for k in range(len(group_rows)):
                     subset_w = cur_width + sep_w
@@ -524,12 +526,12 @@ def _merge_adjacent_rows(ws, header_row: int, start_col: int, merge_start_col: i
         # 构建新富文本
         new_rt = CellRichText()
         _append_cell_rich_text(new_rt, cur_cell.value)
-        new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W'), "-"))
+        new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W'), separator))
 
         for idx, gr in enumerate(group_rows):
             gr_cell = ws.cell(row=gr, column=merge_start_col)
             if idx > 0:
-                new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W'), "-"))
+                new_rt.append(TextBlock(InlineFont(rFont='汉仪文黑-65W'), separator))
             if idx == 0 and group_sec != cur_sec:
                 formatted = format_sec(group_sec)
                 _append_with_sec_suffix(new_rt, gr_cell.value, formatted)
