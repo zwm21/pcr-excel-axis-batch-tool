@@ -62,7 +62,7 @@ GAP_XXL = 24
 WIN_MIN_WIDTH = 680
 WIN_MIN_HEIGHT = 500
 WIN_DEFAULT_WIDTH = 780
-WIN_DEFAULT_HEIGHT = 580
+WIN_DEFAULT_HEIGHT = 750
 
 # ============================================================
 #  组件尺寸
